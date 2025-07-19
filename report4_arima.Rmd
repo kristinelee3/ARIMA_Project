@@ -1,0 +1,124 @@
+---
+title: 'Report 4: NVIDIA Stock Report'
+author: "Lily Alexander & Kristine Lee"
+date: "May 10, 2024"
+output:
+  pdf_document:
+  html_document: default
+---
+
+# Introduction
+
+We proposed to look at a year of a stock's trading value for our Report 4 assignment for MAT382 - Advanced Statistical Methods class. We chose to look at NVIDIA, a software company known for making graphics cards. We chose NVIDIA because neither of us had a preference for a stock to look at and a quick internet search showed that in the past year, NVIDIA stock has done really well. 
+
+We will use the data from the last year of stock trading for NVIDIA's closing prices to predict the closing stock prices for the following 30 trading days. 
+
+#Methods
+
+In order to get the data for testing, we took the data off Yahoo! Finance for the closing prices for the last year of trading of NVIDIA stock. 
+
+```{r}
+library(dplyr)
+library(forecast)
+library(lmtest)
+library(ggplot2)
+```
+
+```{r, fig.cap = "Time Series Plot"}
+my_stock <- read.csv('StockData.csv')
+str(my_stock)
+my_stock$Date <- as.Date(my_stock$Date, format = "%Y-%m-%d")
+start_date <- as.Date("2023-05-07")
+my_stock$TimeSeries <- as.numeric(my_stock$Date - start_date)
+# set the frequency to 252 because that's the number of trading days per year
+my_stock_ts <- ts(my_stock$Close, frequency = 1, start = 1) # the start is not really important
+
+# If you wanted a good plot of your time series, you can create a time series plot using the ggplot2 library
+ggplot(my_stock, aes(x = Date, y = Close)) + 
+  geom_line() +  # This adds the line layer
+  labs(title = "Close Prices Over Time", x = "Date", y = "Close Price")
+```
+```{r}
+plot(my_stock_ts)
+acf(my_stock_ts, lag.max=252)
+```
+
+The plot of stock's closing price does not show a constant mean due to the rapid growth in the latter part of the year. However, we will assume it is constant enough to use ARIMA testing. The variances are approximately constant as well. The ACF plot shows rapid decay, also. Therefore, if we assume that the mean is constant enough, then we can say this model is fit for ARIMA testing. \
+
+```{r}
+model1 <- lm(Close ~ TimeSeries, data = my_stock)
+summary(model1)
+```
+
+```{r}
+modelAR1 <- Arima(my_stock_ts, order = c(1,0,0), include.constant = TRUE)
+modelAR1
+modelAR2 <- Arima(my_stock_ts, order = c(2,0,0), include.constant = TRUE)
+modelAR2
+modelMA1 <- Arima(my_stock_ts, order = c(0,0,1), include.constant = TRUE)
+modelMA1
+modelMA2 <- Arima(my_stock_ts, order = c(0,0,2), include.constant = TRUE)
+modelMA2
+AIC(modelAR1, modelAR2, modelMA1, modelMA2)
+```
+
+We will combine the lowest AR model and the lowest MA model to see how the AIC will change. 
+```{r}
+model2 <- Arima(my_stock_ts, order = c(1,0,2), include.constant = TRUE)
+model2
+```
+After having combined the two models (AR1 and MA2), the AIC has increased slightly from the AR1 model. We will now consider if d=1 instead of 0. 
+
+```{r}
+model3 <- Arima(my_stock_ts, order = c(1,1,2), include.constant = TRUE)
+model3
+```
+After making d=1 instead of 0, the AIC has lowered below the AR1 model's AIC. Because this model has the lowest AIC of all the models tested so far, we will continue with this model. 
+
+From a glimpse at the data set we've obtained, we do not see any trends over the course of the weeks, therefore, we did not consider making a seasonal model.
+
+```{r, fig.cap = 'Forecast for the next 30 trading days'}
+fc <- forecast(model3, h=30)
+fc
+plot(fc, xlab='Day (From Start Date)', ylab='Closing Price')
+```
+
+```{r, fig.cap = "Diagnostic Plots"}
+checkresiduals(model3, test = FALSE)
+```
+We see no evidence that there exists auto-correlation between residuals for the ARIMA(1,1,2) model. 
+
+#Results
+
+For the 30 days following the end date for the data we collected, we can expect NVIDIA's closing stock price to go up with a minimum price in 30 days of $861.46. Because we are expecting the stock to trend upward, it would be wise, if you had stock in this company, to sell your shares for profit assuming you purchased your shares when the price was lower. 
+
+#Discussion
+
+After first testing the data's fitness for ARIMA testing, we found that the mean may not be constant enough to use this test. However, ignoring that, we proceeded to see what might come of it. This assumption not being fully met means the results we obtained ar of questionable reliability. We fitted various ARIMA tests to see which may fit best and found that ARIMA(1,1,2) best fit our data while still keeping the model relatively small. We used this plot to forecast the stock's closing price for the next 30 trading days and found that the stock prices trend upwards. 
+
+#CRediT
+Conceptualization - Dr. Amish Mishra (Nobody else would think up such torture)
+
+Data curation - Lily Alexander & Kristine Lee
+
+Formal Analysis - Lily Alexander & Kristine Lee
+
+Funding acquisition - None. We're broke...
+
+Investigation - Lily Alexander & Kristine Lee
+
+Methodology - Kristine Lee
+
+Project administration - Lily Alexander & Kristine Lee
+
+Resources - Yahoo! Finance, Dr. Amish Mishra's Notes
+
+Software - RStudio
+
+Supervision - Our Lord and Saviour Jesus Christ
+
+Validation - None - We're all alone :')
+
+Visualization - Lily Alexander & Kristine Lee
+
+Writing - Lily Alexander
